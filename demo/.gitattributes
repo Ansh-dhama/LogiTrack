@@ -1,22 +1,2 @@
-############################
-# IntelliJ IDEA
-############################
-.idea/
-*.iml
-*.ipr
-*.iws
-out/
-.idea_modules/
-
-############################
-# Java / Build outputs
-############################
-target/
-build/
-*.class
-*.jar
-*.war
-*.ear
-*.log
-
-############################
+/mvnw text eol=lf
+*.cmd text eol=crlf
