@@ -20,4 +20,9 @@ public class ApiResponse<T> {
     // Static Helper for Error
     public static <T> ApiResponse<T> error(String message, T data) {
         return new ApiResponse<>(false, message, data);
-    }}
+    }
+    // ✅ NEW: Static Helper for Error (Message Only)
+    public static <T> ApiResponse<T> error(String message) {
+        return new ApiResponse<>(false, message, null);
+    }
+}

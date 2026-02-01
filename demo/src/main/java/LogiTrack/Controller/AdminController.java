@@ -8,7 +8,7 @@ import LogiTrack.Services.AdminService;
 import LogiTrack.Util.JwtUtilie;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize; // 👈 Import this
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
@@ -18,17 +18,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin")
 @RequiredArgsConstructor
-<<<<<<< HEAD
-@PreAuthorize("hasRole('ADMIN')")
-=======
->>>>>>> c8ec02f (initial commit for LogiTrack)
+@PreAuthorize("hasRole('ADMIN')") // Secures all endpoints by default
 public class AdminController {
 
     private final AdminService adminService;
     private final AuthenticationManager authenticationManager;
     private final JwtUtilie jwtUtil;
 
-    @PreAuthorize("permitAll()")
+    @PreAuthorize("permitAll()") // Overrides class-level security for login
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> loginAdmin(@RequestBody LoginRequest request) {
         authenticationManager.authenticate(
@@ -38,7 +35,6 @@ public class AdminController {
         return ResponseEntity.ok(new LoginResponse(token));
     }
 
-    // ✅ Protected by class-level @PreAuthorize("hasAuthority('ADMIN')")
     @GetMapping("/dashboard")
     public ResponseEntity<AdminDashboardDto> getDashboard() {
         return ResponseEntity.ok(adminService.getDashboardStats());

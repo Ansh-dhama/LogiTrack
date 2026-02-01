@@ -21,7 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
+@EnableMethodSecurity // Required for @PreAuthorize to work in your Controllers
 public class SecurityConfig {
 
     @Bean
@@ -52,29 +52,19 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authProvider)
                 .authorizeHttpRequests(req -> req
-                        // Allow Public Access
-<<<<<<< HEAD
-                       // Allows /auth/register, /auth/REGISTER, /auth/login, etc.
-                 .requestMatchers("/auth/**").permitAll()
-=======
-                        .requestMatchers("/auth/register", "/auth/login").permitAll()
->>>>>>> c8ec02f (initial commit for LogiTrack)
-                                .requestMatchers("/admin/login").permitAll()
-// ✅ CORRECT (Notice the / before driver)
-                                .requestMatchers("/driver/register", "/driver/login").permitAll()
-                                .requestMatchers("/track/**").permitAll()
+                        // Allow Public Access for Login and Registration
+                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/admin/login").permitAll()
+                        .requestMatchers("/driver/register", "/driver/login").permitAll()
+                        .requestMatchers("/track/**").permitAll()
 
-                        // Secure everything else
+                        // Secure all other endpoints
                         .anyRequest().authenticated()
                 )
-                // ✅ This is the line that makes JWT work
+                // Filter to validate JWT tokens on every request
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .httpBasic(Customizer.withDefaults());
 
         return http.build();
     }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> c8ec02f (initial commit for LogiTrack)

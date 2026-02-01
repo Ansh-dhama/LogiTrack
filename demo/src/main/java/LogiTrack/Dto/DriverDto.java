@@ -1,10 +1,7 @@
 package LogiTrack.Dto;
 
 import LogiTrack.Enums.Role;
-<<<<<<< HEAD
-=======
 import LogiTrack.Enums.Status;
->>>>>>> c8ec02f (initial commit for LogiTrack)
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -16,12 +13,9 @@ public class DriverDto {
     private String driverName;
     private String email;
     private String password;
-<<<<<<< HEAD
-=======
-    private boolean isAvailable;
->>>>>>> c8ec02f (initial commit for LogiTrack)
-
+    private boolean isAvailable; // Crucial for auto-assignment logic
     private Role role;
-    // In LogiTrack/Dto/DriverDto.java
-    private List<ShipmentDto> shipmentDtoList = new ArrayList<>(); // Initialize this!
+
+    // Initialized to prevent NullPointerExceptions during mapping
+    private List<ShipmentDto> shipmentDtoList = new ArrayList<>();
 }

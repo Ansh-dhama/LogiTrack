@@ -1,58 +1,40 @@
 package LogiTrack.Services;
 
 import LogiTrack.Dto.TrackingUpdateDto;
-<<<<<<< HEAD
 import LogiTrack.Entity.TrackingUpdate;
-import LogiTrack.Repository.TrackingRepository;
-import org.springframework.stereotype.Service;
-
-@Service
-public class TrackingUpdatesService {
-    private TrackingRepository  trackingRepository;
-    public TrackingUpdatesService(TrackingRepository trackingRepository) {
-=======
-import LogiTrack.Entity.Shipment;
-import LogiTrack.Entity.TrackingUpdate;
-import LogiTrack.Enums.Role;
-import LogiTrack.Enums.Status;
-import LogiTrack.Exceptions.ShipmentNotFoundException;
-import LogiTrack.MapStructs.ShipmentMapper;
 import LogiTrack.Repository.ShipmentRepository;
 import LogiTrack.Repository.TrackingRepository;
+import LogiTrack.MapStructs.ShipmentMapper;
 import org.springframework.stereotype.Service;
-
-import java.util.Optional;
 
 @Service
 public class TrackingUpdatesService {
-    private TrackingRepository  trackingRepository;
 
+    private final TrackingRepository trackingRepository;
+    private final ShipmentRepository shipmentRepository;
+    private final ShipmentMapper shipmentMapper;
 
-    public TrackingUpdatesService(TrackingRepository trackingRepository, StatusTransitionValidator statusTransitionValidator, ShipmentRepository shipmentRepository, ShipmentMapper shipmentMapper) {
->>>>>>> c8ec02f (initial commit for LogiTrack)
+    public TrackingUpdatesService(TrackingRepository trackingRepository,
+                                  ShipmentRepository shipmentRepository,
+                                  ShipmentMapper shipmentMapper) {
         this.trackingRepository = trackingRepository;
+        this.shipmentRepository = shipmentRepository;
+        this.shipmentMapper = shipmentMapper;
     }
+
     public TrackingUpdateDto findByTrackingNumber(String trackingNumber) {
         TrackingUpdate trackingUpdate = trackingRepository.findBytrackingNumber(trackingNumber);
-<<<<<<< HEAD
-=======
+
         if (trackingUpdate == null) {
-            return null;
+            return null; // Or throw a ShipmentNotFoundException
         }
->>>>>>> c8ec02f (initial commit for LogiTrack)
+
         TrackingUpdateDto trackingUpdateDto = new TrackingUpdateDto();
         trackingUpdateDto.setTrackingNumber(trackingUpdate.getTrackingNumber());
         trackingUpdateDto.setLastUpdate(trackingUpdate.getLastUpdate());
         trackingUpdateDto.setStatus(trackingUpdate.getStatus());
         trackingUpdateDto.setShipment(trackingUpdate.getShipment());
-<<<<<<< HEAD
-        return trackingUpdateDto;
-     }
-=======
-        
-        return trackingUpdateDto;
-     }
-    // Inside TrackingUpdatesService.java
 
->>>>>>> c8ec02f (initial commit for LogiTrack)
+        return trackingUpdateDto;
+    }
 }

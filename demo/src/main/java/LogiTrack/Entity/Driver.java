@@ -6,7 +6,6 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.util.List;
 
 @Entity
@@ -20,7 +19,6 @@ public class Driver {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
     private String driverName;
 
     @Column(nullable = false)
@@ -28,24 +26,18 @@ public class Driver {
 
     @Column(nullable = false)
     private String email;
+
     @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL)
     @JsonIgnore
-<<<<<<< HEAD
     private List<Shipment> shipments;
-=======
-        private List<Shipment> shipments;
->>>>>>> c8ec02f (initial commit for LogiTrack)
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
 
     private boolean isAvailable = false;
 
     public void setAvailable(boolean newStatus) {
-        isAvailable = newStatus;
+        this.isAvailable = newStatus;
     }
-<<<<<<< HEAD
-=======
-
->>>>>>> c8ec02f (initial commit for LogiTrack)
 }
