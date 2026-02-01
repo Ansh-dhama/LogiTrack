@@ -11,15 +11,11 @@ import org.springframework.stereotype.Service;
 public class TrackingUpdatesService {
 
     private final TrackingRepository trackingRepository;
-    private final ShipmentRepository shipmentRepository;
-    private final ShipmentMapper shipmentMapper;
 
-    public TrackingUpdatesService(TrackingRepository trackingRepository,
-                                  ShipmentRepository shipmentRepository,
-                                  ShipmentMapper shipmentMapper) {
+
+    public TrackingUpdatesService(TrackingRepository trackingRepository) {
         this.trackingRepository = trackingRepository;
-        this.shipmentRepository = shipmentRepository;
-        this.shipmentMapper = shipmentMapper;
+
     }
 
     public TrackingUpdateDto findByTrackingNumber(String trackingNumber) {

@@ -37,7 +37,5 @@ public class Driver {
 
     private boolean isAvailable = false;
 
-    public void setAvailable(boolean newStatus) {
-        this.isAvailable = newStatus;
-    }
+
 }
