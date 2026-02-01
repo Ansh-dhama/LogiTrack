@@ -1,7 +1,6 @@
 package LogiTrack.Dto;
 
 import LogiTrack.Enums.Role;
-import LogiTrack.Enums.Status;
 import lombok.Data;
 
 import java.util.ArrayList;

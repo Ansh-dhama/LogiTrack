@@ -2,9 +2,7 @@ package LogiTrack.Services;
 
 import LogiTrack.Dto.TrackingUpdateDto;
 import LogiTrack.Entity.TrackingUpdate;
-import LogiTrack.Repository.ShipmentRepository;
 import LogiTrack.Repository.TrackingRepository;
-import LogiTrack.MapStructs.ShipmentMapper;
 import org.springframework.stereotype.Service;
 
 @Service
