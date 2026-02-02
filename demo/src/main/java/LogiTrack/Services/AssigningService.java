@@ -88,7 +88,7 @@ public class AssigningService {
         update.setStatus(Status.ASSIGNED);
         update.setCreationTime(LocalDateTime.now());
         update.setTrackingNumber(shipment.getTrackingNumber());
-
+        update.getUpdates().put(LocalDateTime.now(),Status.ASSIGNED);
         if (shipment.getTrackingUpdates() == null) {
             shipment.setTrackingUpdates(new ArrayList<>());
         }

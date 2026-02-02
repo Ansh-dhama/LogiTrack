@@ -3,10 +3,13 @@ package LogiTrack.Controller;
 import LogiTrack.Dto.ApiResponse;
 import LogiTrack.Dto.ShipmentDto;
 import LogiTrack.Dto.StatusDto;
+import LogiTrack.Dto.TrackingUpdateDto;
 import LogiTrack.Entity.Shipment;
+import LogiTrack.Enums.Status;
 import LogiTrack.MapStructs.ShipmentMapper;
 import LogiTrack.Services.CustomUserDetails;
 import LogiTrack.Services.ShipmentService;
+import LogiTrack.Services.TrackingUpdatesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +19,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -27,6 +32,7 @@ public class ShipmentController {
 
     private final ShipmentService shipmentService;
     private final ShipmentMapper shipmentMapper;
+    private final TrackingUpdatesService trackingUpdatesService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<ShipmentDto>> createShipment(@Valid @RequestBody ShipmentDto dto) {
@@ -49,7 +55,16 @@ public class ShipmentController {
 
         return ResponseEntity.ok(ApiResponse.success("Shipments fetched successfully", dtos));
     }
+    @GetMapping("/{trackingNumber}/updates")
+    public ResponseEntity<ApiResponse<Map<LocalDateTime, Status>>> getUpdates(
+            // 👇 ADD ("trackingNumber") HERE
+            @PathVariable("trackingNumber") String trackingNumber) {
 
+        TrackingUpdateDto t1 = trackingUpdatesService.findByTrackingNumber(trackingNumber);
+        Map<LocalDateTime, Status> updates = t1.getUpdates();
+
+        return new ResponseEntity<>(ApiResponse.success("Your updates are", updates), HttpStatus.OK);
+    }
     @PatchMapping("/status")
     public ResponseEntity<ApiResponse<String>> updateShipmentStatus(
             @RequestBody StatusDto statusDto,

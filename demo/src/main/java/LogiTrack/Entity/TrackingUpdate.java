@@ -9,6 +9,8 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @Entity
 @Data
@@ -32,10 +34,20 @@ public class TrackingUpdate {
     @Column(nullable = false)
     private LocalDateTime lastUpdate;
 
-
     // Link back to the Shipment
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shipment_id")
     @JsonBackReference // Prevents infinite recursion loop in JSON
     private Shipment shipment;
+
+    // --- THIS IS THE FIX ---
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+            name = "tracking_status_history", // Name of the new table in DB
+            joinColumns = @JoinColumn(name = "tracking_number") // Foreign Key
+    )
+    @MapKeyColumn(name = "update_timestamp") // Column for the Key (LocalDateTime)
+    @Column(name = "status_value")           // Column for the Value (Status)
+    @Enumerated(EnumType.STRING)             // Store Enum as text (e.g., "DELIVERED")
+    private Map<LocalDateTime, Status> updates = new HashMap<>();
 }

@@ -5,6 +5,9 @@ import LogiTrack.Entity.TrackingUpdate;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.CrudRepository;
 
-public interface TrackingRepository extends JpaRepository<TrackingUpdate,Long> {
+import java.util.Optional;
+
+public interface TrackingRepository extends JpaRepository<TrackingUpdate,String> {
     TrackingUpdate findBytrackingNumber(String trackingNumber);
+
 }

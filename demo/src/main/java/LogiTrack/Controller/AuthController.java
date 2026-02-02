@@ -57,7 +57,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse> registerUser(@Valid @RequestBody AuthDto authDto) {
         log.info("Registering new user: {}", authDto.getUsername());
-           authService.registerUser(authDto);
+        authService.registerUser(authDto);
             return new ResponseEntity<>(ApiResponse.success("User registered successfully",null), HttpStatus.CREATED);
     }
     @PutMapping("/update")

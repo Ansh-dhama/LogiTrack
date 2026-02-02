@@ -69,69 +69,73 @@ public class ShipmentService {
     }
 
     // ✅ 3. Update Status (The Secure, Validated Version)
+    // ✅ 3. Update Status (Corrected & Working)
     @Transactional
     public void updateStatus(String trackingNumber, Status newStatus, Long currentUserId, Role currentUserRole) {
 
+        // 1. Find the Shipment
         Shipment shipment = shipmentRepository.findByTrackingNumber(trackingNumber)
                 .orElseThrow(() -> new ShipmentNotFoundException("Shipment not found: " + trackingNumber));
 
         Status currentStatus = shipment.getStatus();
 
-        // 1. Idempotency Check (Optimization)
+        // 2. Idempotency Check (If status is same, do nothing)
         if (currentStatus == newStatus) {
             return;
         }
 
-        // 2. Validate Transition (The Roadmap)
+        // 3. Validate Transition (Your Roadmap logic)
         validator.validateTransition(currentStatus, newStatus, currentUserRole);
 
-        // 3. Driver Ownership Check (Security)
+        // 4. Driver Ownership Check (Security)
         if (currentUserRole == Role.DRIVER) {
             if (shipment.getDriver() == null || !shipment.getDriver().getId().equals(currentUserId)) {
                 throw new SecurityException("Access Denied: You are not assigned to this shipment.");
             }
         }
 
-        // 4. "Three Strikes" Logic (Delivery Attempts)
+        // 5. "Three Strikes" Logic
         if (newStatus == Status.DELIVERY_ATTEMPTED) {
             int attempts = shipment.getDeliveryAttempts() + 1;
             shipment.setDeliveryAttempts(attempts);
 
-            log.info("Delivery attempt #{} for shipment {}", attempts, trackingNumber);
-
             // If 3rd failure, force status to RETURNED
             if (attempts >= 3) {
                 newStatus = Status.RETURNED;
-                log.warn("Shipment {} reached max delivery attempts. Marked as RETURNED.", trackingNumber);
-
-                // Notify User about RTO
                 emailService.sendEmail(shipment.getUser().getEmail(), "Delivery Failed",
-                        "Your shipment " + trackingNumber + " could not be delivered after 3 attempts and is being returned.");
+                        "Your shipment " + trackingNumber + " is being returned after 3 failed attempts.");
             }
         }
 
-        // 5. Update & Save
+        // 6. Update Shipment Status
         shipment.setStatus(newStatus);
         shipmentRepository.save(shipment);
 
-        // 6. Log History
-        TrackingUpdate historyLog = new TrackingUpdate();
-        historyLog.setShipment(shipment);
-        historyLog.setTrackingNumber(shipment.getTrackingNumber());
+        // 7. Log History (THE FIX)
+        // We must FETCH the existing log first. If we do 'new TrackingUpdate()',
+        // we wipe the data and send NULLs to the DB.
+        TrackingUpdate historyLog = trackingRepository.findById(trackingNumber)
+                .orElseGet(() -> {
+                    TrackingUpdate newLog = new TrackingUpdate();
+                    newLog.setTrackingNumber(trackingNumber);
+                    newLog.setShipment(shipment);
+                    newLog.setCreationTime(LocalDateTime.now());
+                    return newLog;
+                });
+
+        // MANUALLY update the timestamp to satisfy the "NOT NULL" constraint
+        LocalDateTime now = LocalDateTime.now();
+        historyLog.setLastUpdate(now);
         historyLog.setStatus(newStatus);
-        historyLog.setCreationTime(LocalDateTime.now());
+        historyLog.getUpdates().put(now, newStatus);
+
         trackingRepository.save(historyLog);
 
-        // 7. Notifications
+        // 8. Notifications
         if (newStatus == Status.CANCELLED) {
-            emailService.sendEmail(shipment.getUser().getEmail(), "Shipment Cancelled",
-                    "Your shipment " + trackingNumber + " has been cancelled.");
+            emailService.sendEmail(shipment.getUser().getEmail(), "Shipment Cancelled", "Your shipment has been cancelled.");
         } else if (newStatus == Status.DELIVERED) {
-            emailService.sendEmail(shipment.getUser().getEmail(), "Shipment Delivered",
-                    "Your shipment " + trackingNumber + " has been successfully delivered!");
-        } else if (newStatus == Status.RETURNED) {
-            emailService.sendEmail(shipment.getUser().getEmail(), "Shipment Returned",
-                    "Your shipment " + trackingNumber + " has been marked as returned.");
+            emailService.sendEmail(shipment.getUser().getEmail(), "Shipment Delivered", "Your shipment has been delivered.");
         }
     }
 

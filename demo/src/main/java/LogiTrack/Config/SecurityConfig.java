@@ -18,10 +18,14 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration; // <--- Import 1
+import org.springframework.web.cors.CorsConfigurationSource; // <--- Import 2
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource; // <--- Import 3
+import java.util.List; // <--- Import 4
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity // Required for @PreAuthorize to work in your Controllers
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
@@ -48,23 +52,41 @@ public class SecurityConfig {
                                                    AuthenticationProvider authProvider,
                                                    JwtFilter jwtFilter) throws Exception {
         http
+                // 1. ENABLE CORS HERE
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authProvider)
                 .authorizeHttpRequests(req -> req
-                        // Allow Public Access for Login and Registration
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/admin/login").permitAll()
                         .requestMatchers("/driver/register", "/driver/login").permitAll()
                         .requestMatchers("/track/**").permitAll()
-
-                        // Secure all other endpoints
                         .anyRequest().authenticated()
                 )
-                // Filter to validate JWT tokens on every request
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .httpBasic(Customizer.withDefaults());
 
         return http.build();
+    }
+
+    // 2. DEFINE THE CORS SETTINGS BEAN
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        // Allow ANY origin (Solving your frontend issue)
+        configuration.setAllowedOrigins(List.of("*"));
+
+        // Allow standard HTTP methods
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        // Allow all headers (Authorization, Content-Type, etc.)
+        configuration.setAllowedHeaders(List.of("*"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }
