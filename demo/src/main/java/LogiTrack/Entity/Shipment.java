@@ -17,10 +17,10 @@ import java.util.List;
 @NoArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
 public class Shipment {
-
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(length = 36)
+    private String id;
 
     @Enumerated(EnumType.STRING)
     private Status status;
@@ -50,10 +50,6 @@ public class Shipment {
     @ManyToOne
     @JoinColumn(name = "users_id")
     private User user;
-
-    @OneToMany(mappedBy = "shipment", cascade = CascadeType.ALL)
-    private List<TrackingUpdate> trackingUpdates = new ArrayList<>();
-
     @ManyToOne
     @JoinColumn(name = "driver_id")
     private Driver driver;

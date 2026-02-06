@@ -1,42 +1,82 @@
 package LogiTrack.Services;
 
-import LogiTrack.Dto.TrackingUpdateDto;
-import LogiTrack.Entity.TrackingUpdate;
-import LogiTrack.Repository.TrackingRepository;
+import LogiTrack.Dto.TrackingEventDto;
+import LogiTrack.Dto.TrackingTimelineDto;
+import LogiTrack.Entity.TrackingEvent;
+import LogiTrack.Repository.TrackingEventRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional; // Import this!
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class TrackingUpdatesService {
 
-    private final TrackingRepository trackingRepository;
+    private final TrackingEventRepository trackingEventRepository;
 
-    public TrackingUpdatesService(TrackingRepository trackingRepository) {
-        this.trackingRepository = trackingRepository;
+    public TrackingUpdatesService(TrackingEventRepository trackingEventRepository) {
+        this.trackingEventRepository = trackingEventRepository;
     }
 
-    // Add @Transactional to ensure the Map loads correctly from the database
     @Transactional(readOnly = true)
-    public TrackingUpdateDto findByTrackingNumber(String trackingNumber) {
-        TrackingUpdate trackingUpdate = trackingRepository.findBytrackingNumber(trackingNumber);
+    public TrackingTimelineDto getTimeline(String trackingNumber) {
 
-        if (trackingUpdate == null) {
-            // It is better to return an empty object or throw exception than return null
-            throw new RuntimeException("Tracking info not found for: " + trackingNumber);
+        // ✅ Existence check (at least one event)
+        boolean exists = trackingEventRepository.existsByTrackingNumber(trackingNumber);
+        if (!exists) {
+            throw new RuntimeException("No tracking events found for trackingNumber: " + trackingNumber);
         }
 
-        TrackingUpdateDto trackingUpdateDto = new TrackingUpdateDto();
-        trackingUpdateDto.setTrackingNumber(trackingUpdate.getTrackingNumber());
-        trackingUpdateDto.setLastUpdate(trackingUpdate.getLastUpdate());
-        trackingUpdateDto.setStatus(trackingUpdate.getStatus());
+        List<TrackingEvent> last20 = trackingEventRepository
+                .findTop20ByTrackingNumberOrderByAtTimeDesc(trackingNumber);
 
-        if (trackingUpdate.getShipment() != null) {
-            trackingUpdateDto.setShipmentId(trackingUpdate.getShipment().getId());
-        }
+        var lastStatusEventOpt = trackingEventRepository
+                .findTop1ByTrackingNumberAndStatusIsNotNullOrderByAtTimeDesc(trackingNumber);
 
-        // 👇 THIS WAS MISSING. YOU MUST COPY THE MAP!
-        trackingUpdateDto.setUpdates(trackingUpdate.getUpdates());
+        TrackingTimelineDto dto = new TrackingTimelineDto();
+        dto.setTrackingNumber(trackingNumber);
 
-        return trackingUpdateDto;
+        lastStatusEventOpt.ifPresent(last -> {
+            dto.setLastStatus(last.getStatus());
+            dto.setLastUpdateTime(last.getAtTime());
+        });
+
+        // timeline: currently DESC (latest first). If you want oldest->latest, reverse later.
+        List<TrackingEventDto> timeline = last20.stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+
+        dto.setTimeline(timeline);
+        return dto;
+    }
+
+    private TrackingEventDto toDto(TrackingEvent e) {
+        TrackingEventDto dto = new TrackingEventDto();
+        dto.setStatus(e.getStatus());
+        dto.setAtTime(e.getAtTime());
+        dto.setByRole(e.getByRole());
+        dto.setByUserId(e.getByUserId());
+        dto.setLat(e.getLat());
+        dto.setLng(e.getLng());
+        dto.setRemark(e.getRemark());
+        dto.setReason(e.getReason());
+        return dto;
+    }
+
+    // ✅ If you still want a "quick" endpoint for latest status only
+    @Transactional(readOnly = true)
+    public TrackingEventDto getLatestStatus(String trackingNumber) {
+        var lastStatusEventOpt = trackingEventRepository
+                .findTop1ByTrackingNumberAndStatusIsNotNullOrderByAtTimeDesc(trackingNumber);
+
+        TrackingEvent last = lastStatusEventOpt
+                .orElseThrow(() -> new RuntimeException("No status events found for trackingNumber: " + trackingNumber));
+
+        return toDto(last);
+    }
+
+    public TrackingEventDto findByTrackingNumber(String trackingNumber) {
+        return trackingEventRepository.findBytrackingNumber(trackingNumber);
     }
 }

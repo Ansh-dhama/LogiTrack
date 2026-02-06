@@ -3,9 +3,12 @@ package LogiTrack.Services;
 import LogiTrack.Dto.DriverDto;
 import LogiTrack.Dto.DriverStatus;
 import LogiTrack.Entity.Driver;
+import LogiTrack.Entity.Shipment;
 import LogiTrack.Enums.Role;
 import LogiTrack.Exceptions.DriverExistException;
 import LogiTrack.Exceptions.DriverNotFoundException;
+import LogiTrack.Exceptions.DriverNotMatchException;
+import LogiTrack.Exceptions.ShipmentNotFoundException;
 import LogiTrack.MapStructs.DriverMapper;
 import LogiTrack.Repository.DriverRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,7 @@ public class DriverService {
     private final DriverRepository driverRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
+    private final ShipmentService shipmentService;
 
     public DriverDto getDriverProfile(String email) {
         Driver driver = driverRepository.findByEmail(email);
@@ -43,7 +47,7 @@ public class DriverService {
         driver.setEmail(dto.getEmail());
         driver.setPassword(passwordEncoder.encode(dto.getPassword()));
         driver.setRole(Role.DRIVER);
-        driver.setAvailable(false);
+        driver.setIsAvailable(false);
 
         Driver savedDriver = driverRepository.save(driver);
         emailService.sendEmail(savedDriver.getEmail(), "Welcome Driver",
@@ -60,7 +64,7 @@ public class DriverService {
         boolean isUpdated = false;
 
         // Update availability if provided in DTO
-        driver.setAvailable(dto.isAvailable());
+        driver.setIsAvailable(dto.isAvailable());
 
         if (dto.getDriverName() != null && !dto.getDriverName().isEmpty()) {
             driver.setDriverName(dto.getDriverName());
@@ -82,11 +86,18 @@ public class DriverService {
         driverRepository.delete(driver);
         emailService.sendEmail(email, "Account Deleted", "Your account has been deleted.");
     }
+    public  void driverStartTrip(String email , String trackingNumber)  {
+        Driver driver = driverRepository.findByEmail(email);
+        if(driver == null){
+            throw new DriverNotFoundException("Driver not found "+email);
+        }
+        shipmentService.driverStartTrip(trackingNumber,driver.getId());
 
+    }
     public DriverStatus checkStatus(String email) {
         Driver driver = driverRepository.findByEmail(email);
         DriverStatus status = new DriverStatus();
-        status.setStatus(driver.isAvailable());
+        status.setStatus(driver.getIsAvailable());
         status.setEmail(email);
         return status;
     }
@@ -94,8 +105,8 @@ public class DriverService {
     @Transactional
     public void updateStatus(DriverStatus dto) {
         Driver driver = driverRepository.findByEmail(dto.getEmail());
-        if (driver != null && dto.getStatus() != driver.isAvailable()) {
-            driver.setAvailable(dto.getStatus());
+        if (driver != null && dto.getStatus() != driver.getIsAvailable()) {
+            driver.setIsAvailable(dto.getStatus());
             driverRepository.save(driver);
         }
     }

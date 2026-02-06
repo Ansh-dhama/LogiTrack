@@ -18,4 +18,6 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
             "WHERE s.status NOT IN (LogiTrack.Enums.Status.PENDING ,LogiTrack.Enums.Status.IN_TRANSIT) " +
             "GROUP BY s.driver.id")
     List<Object[]> countActiveShipmentsPerDriver();
+
+    List<Driver> findByIsAvailableTrue();
 }

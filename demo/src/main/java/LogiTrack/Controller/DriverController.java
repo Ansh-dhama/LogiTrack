@@ -1,14 +1,18 @@
     package LogiTrack.Controller;
 
     import LogiTrack.Dto.*;
+    import LogiTrack.Services.CustomUserDetails;
     import LogiTrack.Services.DriverService;
+    import LogiTrack.Services.ShipmentService;
     import LogiTrack.Util.JwtUtilie;
     import lombok.RequiredArgsConstructor;
     import lombok.extern.slf4j.Slf4j;
     import org.springframework.http.HttpStatus;
     import org.springframework.http.ResponseEntity;
+    import org.springframework.security.access.prepost.PreAuthorize;
     import org.springframework.security.authentication.AuthenticationManager;
     import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+    import org.springframework.security.core.annotation.AuthenticationPrincipal;
     import org.springframework.security.core.context.SecurityContextHolder;
     import org.springframework.validation.annotation.Validated;
     import org.springframework.web.bind.annotation.*;
@@ -22,6 +26,7 @@
         private final DriverService driverService;
         private final AuthenticationManager authenticationManager;
         private final JwtUtilie jwtUtil;
+        private final ShipmentService shipmentService;
         @PostMapping("/login")
         public ResponseEntity<ApiResponse<LoginResponse>> loginDriver(@RequestBody LoginRequest request) {
             authenticationManager.authenticate(
@@ -53,7 +58,13 @@
                     HttpStatus.CREATED
             );
         }
-
+        @PostMapping("/driverStartTrip/{trackingNumber}")
+        @PreAuthorize("hasRole('DRIVER')")
+        public ResponseEntity<ApiResponse<String>> driverStartTrip(@PathVariable String trackingNumber,
+                                                                   @AuthenticationPrincipal CustomUserDetails userDetails) {
+            shipmentService.driverStartTrip(trackingNumber, userDetails.getId());
+            return new ResponseEntity<>(ApiResponse.success("Out for delivery", null), HttpStatus.ACCEPTED);
+        }
         @PutMapping("/update")
         public ResponseEntity<ApiResponse<DriverDto>> updateDriver(@Validated @RequestBody DriverDto dto) {
             String email = SecurityContextHolder.getContext().getAuthentication().getName();
