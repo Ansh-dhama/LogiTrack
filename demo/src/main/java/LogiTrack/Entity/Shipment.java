@@ -57,4 +57,12 @@ public class Shipment {
     @ManyToOne
     @JoinColumn(name = "driver_id")
     private Driver driver;
+    private Double currentLatitude;
+    private Double currentLongitude;
+
+    // Destination Location (Fixed when shipment is created)
+    private Double destinationLatitude;
+    private Double destinationLongitude;
+
+    private String estimatedTimeArrival;
 }

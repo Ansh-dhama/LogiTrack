@@ -5,6 +5,7 @@
         import jakarta.persistence.*;
         import lombok.*;
 
+        import java.time.LocalDateTime;
         import java.util.List;
 
 
@@ -35,5 +36,8 @@
             @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
             @JsonIgnore
             private List<Shipment> shipments;
+            // Inside LogiTrack.Entity.User.java
+            private String otp;
+            private LocalDateTime otpExpirationTime;
 
         }

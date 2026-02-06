@@ -37,5 +37,8 @@
 
         private boolean isAvailable = false;
 
+        // Current Driver Location (Updated frequently)
+        private Double currentLatitude;
+        private Double currentLongitude;
 
     }

@@ -1,9 +1,6 @@
 package LogiTrack.Controller;
 
-import LogiTrack.Dto.ApiResponse;
-import LogiTrack.Dto.ShipmentDto;
-import LogiTrack.Dto.StatusDto;
-import LogiTrack.Dto.TrackingUpdateDto;
+import LogiTrack.Dto.*;
 import LogiTrack.Entity.Shipment;
 import LogiTrack.Enums.Status;
 import LogiTrack.MapStructs.ShipmentMapper;
@@ -83,5 +80,13 @@ public class ShipmentController {
         );
 
         return ResponseEntity.ok(ApiResponse.success("Shipment status updated successfully.", null));
+    }
+    @PostMapping("/{id}/location")
+    public ResponseEntity<ApiResponse> updateLocation(
+            @PathVariable Long id,
+            @RequestBody DriverLocationUpdateDto locationDto) {
+
+        shipmentService.updateDriverLocation(id, locationDto);
+        return ResponseEntity.ok(ApiResponse.success("Location and ETA updated", null));
     }
 }

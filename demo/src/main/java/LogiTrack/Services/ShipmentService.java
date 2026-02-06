@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import LogiTrack.Dto.DriverLocationUpdateDto;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -56,6 +57,7 @@ public class ShipmentService {
         shipment.setStatus(Status.PENDING); // Default status
         shipment.setUser(user);
         shipment.setDeliveryAttempts(0); // Initialize attempts
+
 
         // Assign Driver if provided
         if (dto.getDriverId() != null) {
@@ -156,6 +158,60 @@ public class ShipmentService {
         }
 
         shipmentRepository.save(shipment);
+    }
+    public void updateDriverLocation(Long shipmentId, DriverLocationUpdateDto locationDto) {
+        Shipment shipment = shipmentRepository.findById(shipmentId)
+                .orElseThrow(() -> new RuntimeException("Shipment not found with ID: " + shipmentId));
+
+        // Update current position
+        shipment.setCurrentLatitude(locationDto.getLatitude());
+        shipment.setCurrentLongitude(locationDto.getLongitude());
+
+        // Update Status to IN_TRANSIT if it was PENDING
+        if (shipment.getStatus() == Status.PENDING) {
+            shipment.setStatus(Status.IN_TRANSIT);
+        }
+
+        // Calculate ETA only if destination is set
+        if (shipment.getDestinationLatitude() != null && shipment.getDestinationLongitude() != null) {
+            double distanceKm = calculateDistance(
+                    locationDto.getLatitude(), locationDto.getLongitude(),
+                    shipment.getDestinationLatitude(), shipment.getDestinationLongitude()
+            );
+
+            // Assume average speed of 40 km/h for city driving
+            double speedKmH = 40.0;
+            double hoursLeft = distanceKm / speedKmH;
+            int totalMinutes = (int) (hoursLeft * 60);
+
+            if (totalMinutes < 60) {
+                shipment.setEstimatedTimeArrival(totalMinutes + " mins");
+            } else {
+                int hours = totalMinutes / 60;
+                int mins = totalMinutes % 60;
+                shipment.setEstimatedTimeArrival(hours + " hr " + mins + " mins");
+            }
+        }
+
+        shipmentRepository.save(shipment);
+    }
+
+    // --- 3. Get Shipment ---
+    public Shipment getShipmentById(Long id) {
+        return shipmentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Shipment not found"));
+    }
+
+    // --- Helper: Haversine Formula for Distance ---
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        double R = 6371; // Radius of the earth in km
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 
     // ✅ 5. Helper

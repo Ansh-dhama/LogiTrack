@@ -15,8 +15,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -76,7 +78,43 @@ public class AuthService {
 
         emailService.sendEmail(email, "Account Deleted", "Your account has been permanently deleted.");
     }
+    public void generateAndSendOtp(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
+        // Generate 6-digit random code
+        String otp = String.valueOf(new Random().nextInt(900000) + 100000);
+
+        // Save to database
+        user.setOtp(otp);
+        user.setOtpExpirationTime(LocalDateTime.now().plusMinutes(5)); // Valid for 5 mins
+        userRepository.save(user);
+
+        // Send Email
+        emailService.sendOtpEmail(email, otp);
+    }
+    public boolean verifyOtp(String email, String inputOtp) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (user.getOtp() == null || user.getOtpExpirationTime() == null) {
+            throw new RuntimeException("No OTP requested");
+        }
+
+        if (user.getOtpExpirationTime().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("OTP has expired");
+        }
+
+        if (user.getOtp().equals(inputOtp)) {
+            // Clear OTP after success so it can't be used twice
+            user.setOtp(null);
+            user.setOtpExpirationTime(null);
+            userRepository.save(user);
+            return true;
+        } else {
+            return false;
+        }
+    }
     public Optional<User> findByName(String username) {
         return userRepository.findByName(username);
     }

@@ -26,4 +26,12 @@ public class EmailService {
             log.error("Failed to send email to {}: {}", to, e.getMessage());
         }
     }
+    public void sendOtpEmail(String toEmail, String otp) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(toEmail);
+        message.setSubject("LogiTrack - Your OTP Code");
+        message.setText("Hello,\n\nYour OTP for verification is: " + otp + "\n\nThis code expires in 5 minutes.");
+
+        javaMailSender.send(message);
+    }
 }

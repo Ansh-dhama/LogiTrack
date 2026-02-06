@@ -33,17 +33,40 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse> login(@Valid @RequestBody LoginRequest request) {
-        log.info("Attempting login for: {}", request.getEmail());
+        log.info("Attempting login (Step 1) for: {}", request.getEmail());
 
-
+        // A. Verify Password with Spring Security
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.getEmail(),
                         request.getPassword()
                 )
         );
-        String token = jwtUtil.generateToken(request.getEmail());
-        return ResponseEntity.ok(ApiResponse.success("Token generated succesfully",new LoginResponse(token)));
+
+        // B. Generate & Send OTP (Do NOT return token yet)
+        authService.generateAndSendOtp(request.getEmail());
+
+        return ResponseEntity.ok(ApiResponse.success("Password verified. OTP sent to your email.", null));
+    }
+
+    // ----------------------------------------------------------------
+    // 2. STEP 2: VERIFY OTP (OTP Check -> Return Token)
+    // ----------------------------------------------------------------
+    @PostMapping("/verify-login-otp")
+    public ResponseEntity<ApiResponse> verifyLoginOtp(@RequestBody VerifyOtpRequest otpRequest) {
+        log.info("Verifying OTP for: {}", otpRequest.getEmail());
+
+        // A. Check if OTP is valid in Database
+        boolean isValid = authService.verifyOtp(otpRequest.getEmail(),otpRequest.getOtp());
+
+        if (isValid) {
+            // B. Generate Token NOW (Only after OTP matches)
+            String token = jwtUtil.generateToken(otpRequest.getEmail());
+            return ResponseEntity.ok(ApiResponse.success("Login Successful. Token generated.", new LoginResponse(token)));
+        } else {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Invalid or Expired OTP", null));
+        }
     }
 
 
