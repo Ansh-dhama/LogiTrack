@@ -3,14 +3,16 @@ package LogiTrack.Services;
 import LogiTrack.Dto.ShipmentDto;
 import LogiTrack.Entity.Driver;
 import LogiTrack.Entity.Shipment;
-import LogiTrack.Entity.TrackingUpdate;
+import LogiTrack.Entity.TrackingEvent;
 import LogiTrack.Entity.User;
 import LogiTrack.Enums.Role;
 import LogiTrack.Enums.Status;
-import LogiTrack.Exceptions.*;
+
+import LogiTrack.Exceptions.DriverNotFoundException;
+import LogiTrack.Exceptions.ShipmentNotFoundException;
+import LogiTrack.Exceptions.UserNotFoundException;
 import LogiTrack.Repository.DriverRepository;
 import LogiTrack.Repository.ShipmentRepository;
-import LogiTrack.Repository.TrackingRepository;
 import LogiTrack.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,7 @@ import LogiTrack.Dto.DriverLocationUpdateDto;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -31,8 +34,9 @@ public class ShipmentService {
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
     private final EmailService emailService;
-    private final TrackingRepository trackingRepository;
     private final StatusTransitionValidator validator;
+    private final TrackingEventService trackingEventService;
+    private final  AssigningService assigningService;
 
     // ✅ 1. Get Shipments
     @Transactional(readOnly = true)
@@ -47,37 +51,34 @@ public class ShipmentService {
     public Shipment createShipment(ShipmentDto dto, String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("User not found: " + email));
-
         Shipment shipment = new Shipment();
 
         shipment.setSenderAddress(dto.getSenderAddress());
         shipment.setReceiverAddress(dto.getReceiverAddress());
         shipment.setWeight(dto.getWeight());
         shipment.setTrackingNumber(generateTrackingId());
-        shipment.setStatus(Status.PENDING); // Default status
+        shipment.setStatus(Status.CREATED);
         shipment.setUser(user);
-        shipment.setDeliveryAttempts(0); // Initialize attempts
+        shipment.setDeliveryAttempts(0);
 
+        shipment = shipmentRepository.save(shipment); // ✅ save first
 
-        // Assign Driver if provided
-        if (dto.getDriverId() != null) {
-            Driver driver = driverRepository.findById(dto.getDriverId())
-                    .orElseThrow(() -> new DriverNotFoundException("Driver not found with ID: " + dto.getDriverId()));
-            shipment.setDriver(driver);
-            shipment.setStatus(Status.ASSIGNED); // Auto-update status if driver is assigned immediately
-        }
-
-        return shipmentRepository.save(shipment);
+        trackingEventService.logStatus(
+                shipment.getTrackingNumber(),
+                Status.CREATED,
+                user.getRole(),
+                user.getId(),
+                "SHIPMENT_CREATED"
+        );
+        assigningService.autoAssignShipments();
+        return shipment;
     }
-
-    // ✅ 3. Update Status (The Secure, Validated Version)
-    // ✅ 3. Update Status (Corrected & Working)
     @Transactional
     public void updateStatus(String trackingNumber, Status newStatus, Long currentUserId, Role currentUserRole) {
 
         // 1. Find the Shipment
         Shipment shipment = shipmentRepository.findByTrackingNumber(trackingNumber)
-                .orElseThrow(() -> new ShipmentNotFoundException("Shipment not found: " + trackingNumber));
+                .orElseThrow(() -> new ShipmentNotFoundException("shipment not found: " + trackingNumber));
 
         Status currentStatus = shipment.getStatus();
 
@@ -113,25 +114,9 @@ public class ShipmentService {
         shipment.setStatus(newStatus);
         shipmentRepository.save(shipment);
 
-        // 7. Log History (THE FIX)
-        // We must FETCH the existing log first. If we do 'new TrackingUpdate()',
-        // we wipe the data and send NULLs to the DB.
-        TrackingUpdate historyLog = trackingRepository.findById(trackingNumber)
-                .orElseGet(() -> {
-                    TrackingUpdate newLog = new TrackingUpdate();
-                    newLog.setTrackingNumber(trackingNumber);
-                    newLog.setShipment(shipment);
-                    newLog.setCreationTime(LocalDateTime.now());
-                    return newLog;
-                });
-
-        // MANUALLY update the timestamp to satisfy the "NOT NULL" constraint
-        LocalDateTime now = LocalDateTime.now();
-        historyLog.setLastUpdate(now);
-        historyLog.setStatus(newStatus);
-        historyLog.getUpdates().put(now, newStatus);
-
-        trackingRepository.save(historyLog);
+        trackingEventService.logStatus(
+                trackingNumber, newStatus, currentUserRole, currentUserId, "STATUS_CHANGED"
+        );
 
         // 8. Notifications
         if (newStatus == Status.CANCELLED) {
@@ -141,45 +126,60 @@ public class ShipmentService {
         }
     }
 
-    // ✅ 4. Assign Driver (For Admin Use)
     @Transactional
-    public void assignDriver(Long shipmentId, Long driverId) {
-        Shipment shipment = shipmentRepository.findById(shipmentId)
-                .orElseThrow(() -> new ShipmentNotFoundException("Shipment not found: " + shipmentId));
-
-        Driver driver = driverRepository.findById(driverId)
-                .orElseThrow(() -> new DriverNotFoundException("Driver not found: " + driverId));
-
-        shipment.setDriver(driver);
-
-        // Auto-update status if it was just CREATED/PENDING
-        if (shipment.getStatus() == Status.PENDING || shipment.getStatus() == Status.CREATED) {
-            shipment.setStatus(Status.ASSIGNED);
+    public void assignDriver(String trackingNumber, Long driverId, Role actorRole, Long actorId) {
+        Shipment shipment = shipmentRepository.findByTrackingNumber(trackingNumber)
+                .orElseThrow(() -> new ShipmentNotFoundException("Shipment not found: " + trackingNumber));
+        if (shipment.getDriver() != null) {
+            throw new IllegalStateException("Shipment already assigned to driverId=" + shipment.getDriver().getId());
+        }
+        Status current = shipment.getStatus();
+        if (current == Status.PENDING) {
+            current = Status.CREATED; // normalize only in logic
+            shipment.setStatus(Status.CREATED); // optional: persist cleanup
         }
 
+        validator.validateTransition(current, Status.ASSIGNED, actorRole);
+        Driver driver = driverRepository.findById(driverId)
+                .orElseThrow(() -> new DriverNotFoundException("Driver not found: " + driverId));
+        if (!Boolean.TRUE.equals(driver.getIsAvailable())) {
+            throw new IllegalStateException("Driver is not available: " + driverId);
+        }
+        shipment.setDriver(driver);
+        shipment.setStatus(Status.ASSIGNED);
+
         shipmentRepository.save(shipment);
+
+        trackingEventService.logStatus(
+                shipment.getTrackingNumber(),
+                Status.ASSIGNED,
+                actorRole,     // ADMIN / USER / SYSTEM
+                actorId,       // who triggered assignment
+                "ASSIGNED_TO_DRIVER:" + driverId
+        );
+
+        driver.setIsAvailable(false);
+        driverRepository.save(driver);
     }
+
+
     public void updateDriverLocation(Long shipmentId, DriverLocationUpdateDto locationDto) {
         Shipment shipment = shipmentRepository.findById(shipmentId)
                 .orElseThrow(() -> new RuntimeException("Shipment not found with ID: " + shipmentId));
 
-        // Update current position
         shipment.setCurrentLatitude(locationDto.getLatitude());
         shipment.setCurrentLongitude(locationDto.getLongitude());
 
-        // Update Status to IN_TRANSIT if it was PENDING
         if (shipment.getStatus() == Status.PENDING) {
             shipment.setStatus(Status.IN_TRANSIT);
         }
 
-        // Calculate ETA only if destination is set
         if (shipment.getDestinationLatitude() != null && shipment.getDestinationLongitude() != null) {
             double distanceKm = calculateDistance(
                     locationDto.getLatitude(), locationDto.getLongitude(),
                     shipment.getDestinationLatitude(), shipment.getDestinationLongitude()
             );
 
-            // Assume average speed of 40 km/h for city driving
             double speedKmH = 40.0;
             double hoursLeft = distanceKm / speedKmH;
             int totalMinutes = (int) (hoursLeft * 60);
@@ -192,17 +192,11 @@ public class ShipmentService {
                 shipment.setEstimatedTimeArrival(hours + " hr " + mins + " mins");
             }
         }
-
+          trackingEventService.logLocation(shipment.getTrackingNumber(),shipment.getDriver().getRole(),shipment.getUser().getId(),
+                  locationDto.getLatitude(),locationDto.getLongitude());
         shipmentRepository.save(shipment);
     }
 
-    // --- 3. Get Shipment ---
-    public Shipment getShipmentById(Long id) {
-        return shipmentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Shipment not found"));
-    }
-
-    // --- Helper: Haversine Formula for Distance ---
     private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
         double R = 6371; // Radius of the earth in km
         double dLat = Math.toRadians(lat2 - lat1);
@@ -213,9 +207,56 @@ public class ShipmentService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
     }
-
-    // ✅ 5. Helper
     private String generateTrackingId() {
         return "TRK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
+
+    public Shipment findBytrackingNumber(String trackingNumber) {
+        return shipmentRepository.findByTrackingNumber(trackingNumber)
+                .orElseThrow(() -> new RuntimeException("Shipment not found"));
+    }
+    @Transactional
+    public void driverStartTrip(String trackingNumber, Long driverId) {
+        Shipment s1 = shipmentRepository.findByTrackingNumber(trackingNumber)
+                .orElseThrow(() -> new RuntimeException("Shipment not found"));
+
+        if (s1.getDriver() == null || !s1.getDriver().getId().equals(driverId)) {
+            throw new SecurityException("Not assigned to this driver");
+        }
+        if (s1.getStatus() != Status.ASSIGNED) {
+            throw new IllegalStateException("Trip can start only when shipment is ASSIGNED");
+        }
+
+        s1.setStatus(Status.IN_TRANSIT);
+        shipmentRepository.save(s1);
+
+        trackingEventService.logStatus(
+                trackingNumber,
+                Status.IN_TRANSIT,
+                Role.DRIVER,
+                driverId,
+                "DRIVER_START_TRIP"
+        );
+    }
+    private void assignDriverToShipment(Shipment shipment, Driver driver) {
+        shipment.setDriver(driver);
+        shipment.setStatus(Status.ASSIGNED);
+        shipmentRepository.save(shipment);
+        trackingEventService.logStatus(
+                shipment.getTrackingNumber(),
+                Status.ASSIGNED,
+                Role.ADMIN,
+                0L,                // or null
+                "AUTO_ASSIGNED"
+        );
+
+        notifyParties(shipment, driver);
+    }
+    private void notifyParties(Shipment shipment, Driver driver) {
+        emailService.sendEmail(shipment.getUser().getEmail(),"Delivery update","Your shipment is assgined to over delivery patner");
+
+        emailService.sendEmail(driver.getEmail(),"New shipment", "You get new shipment details are "+ shipment.getSenderAddress() + " to "
+            + shipment.getReceiverAddress());
+    }
+
 }

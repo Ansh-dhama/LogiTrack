@@ -35,7 +35,8 @@
         @Column(nullable = false)
         private Role role;
 
-        private boolean isAvailable = false;
+
+        private Boolean isAvailable = false; // default true
 
         // Current Driver Location (Updated frequently)
         private Double currentLatitude;
