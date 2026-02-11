@@ -31,7 +31,7 @@ public class AdminService {
         Driver driver = driverRepository.findById(driverId)
                 .orElseThrow(() -> new RuntimeException("Driver not found"));
 
-        if (!driver.getIsAvailable()) {
+        if (!driver.getAvailable()) {
             throw new RuntimeException("Driver is currently unavailable/inactive");
         }
 
@@ -46,8 +46,8 @@ public class AdminService {
                 .orElseThrow(() -> new RuntimeException("Driver not found"));
 
         // Flip the status (True -> False, or False -> True)
-        boolean newStatus = !driver.getIsAvailable();
-        driver.setIsAvailable(newStatus);
+        boolean newStatus = !driver.getAvailable();
+        driver.setAvailable(newStatus);
         driverRepository.save(driver);
 
         return newStatus ? "Driver is now Active" : "Driver is now Inactive";

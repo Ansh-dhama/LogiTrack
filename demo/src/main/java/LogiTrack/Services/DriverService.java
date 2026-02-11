@@ -47,7 +47,7 @@ public class DriverService {
         driver.setEmail(dto.getEmail());
         driver.setPassword(passwordEncoder.encode(dto.getPassword()));
         driver.setRole(Role.DRIVER);
-        driver.setIsAvailable(false);
+        driver.setAvailable(false);
 
         Driver savedDriver = driverRepository.save(driver);
         emailService.sendEmail(savedDriver.getEmail(), "Welcome Driver",
@@ -64,7 +64,7 @@ public class DriverService {
         boolean isUpdated = false;
 
         // Update availability if provided in DTO
-        driver.setIsAvailable(dto.isAvailable());
+        driver.setAvailable(dto.isAvailable());
 
         if (dto.getDriverName() != null && !dto.getDriverName().isEmpty()) {
             driver.setDriverName(dto.getDriverName());
@@ -97,7 +97,7 @@ public class DriverService {
     public DriverStatus checkStatus(String email) {
         Driver driver = driverRepository.findByEmail(email);
         DriverStatus status = new DriverStatus();
-        status.setStatus(driver.getIsAvailable());
+        status.setStatus(driver.getAvailable());
         status.setEmail(email);
         return status;
     }
@@ -105,8 +105,8 @@ public class DriverService {
     @Transactional
     public void updateStatus(DriverStatus dto) {
         Driver driver = driverRepository.findByEmail(dto.getEmail());
-        if (driver != null && dto.getStatus() != driver.getIsAvailable()) {
-            driver.setIsAvailable(dto.getStatus());
+        if (driver != null && dto.getStatus() != driver.getAvailable()) {
+            driver.setAvailable(dto.getStatus());
             driverRepository.save(driver);
         }
     }

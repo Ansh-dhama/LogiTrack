@@ -64,7 +64,7 @@ public class AssigningService {
     private Driver findBestDriver(List<Driver> drivers, String senderEmail) {
         return drivers.stream()
                 .filter(d -> !d.getEmail().equalsIgnoreCase(senderEmail)) // avoid self-assign
-                .filter(d -> Boolean.TRUE.equals(d.getIsAvailable()))
+                .filter(d -> Boolean.TRUE.equals(d.getAvailable()))
                 .min(Comparator.comparingInt(this::getActiveShipmentCount))
                 .orElse(null);
     }
@@ -91,7 +91,7 @@ public class AssigningService {
         shipmentRepository.save(shipment);
 
         // ✅ mark driver unavailable
-        driver.setIsAvailable(false);
+        driver.setAvailable(false);
         driverRepository.save(driver);
 
         // ✅ log TrackingEvent (source of truth)

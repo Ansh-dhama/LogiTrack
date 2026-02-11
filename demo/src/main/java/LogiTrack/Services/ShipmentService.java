@@ -142,7 +142,7 @@ public class ShipmentService {
         validator.validateTransition(current, Status.ASSIGNED, actorRole);
         Driver driver = driverRepository.findById(driverId)
                 .orElseThrow(() -> new DriverNotFoundException("Driver not found: " + driverId));
-        if (!Boolean.TRUE.equals(driver.getIsAvailable())) {
+        if (!Boolean.TRUE.equals(driver.getAvailable())) {
             throw new IllegalStateException("Driver is not available: " + driverId);
         }
         shipment.setDriver(driver);
@@ -158,7 +158,7 @@ public class ShipmentService {
                 "ASSIGNED_TO_DRIVER:" + driverId
         );
 
-        driver.setIsAvailable(false);
+        driver.setAvailable(false);
         driverRepository.save(driver);
     }
 

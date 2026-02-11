@@ -36,7 +36,7 @@
         private Role role;
 
 
-        private Boolean isAvailable = false; // default true
+        private Boolean available = false; // default true
 
         // Current Driver Location (Updated frequently)
         private Double currentLatitude;
