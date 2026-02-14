@@ -19,5 +19,6 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
             "GROUP BY s.driver.id")
     List<Object[]> countActiveShipmentsPerDriver();
 
-    List<Driver> findByIsAvailableTrue();
+  // inside Driver.java
+private boolean available;  // <--- Field name is "available"
 }
