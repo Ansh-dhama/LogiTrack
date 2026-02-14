@@ -38,7 +38,7 @@ public class AssigningService {
 
 
         // ✅ only available drivers
-        List<Driver> drivers = driverRepository.findByIsAvailableTrue();
+        List<Driver> drivers = driverRepository.findByAvailableTrue();
 
         if (unassignedShipments.isEmpty() || drivers.isEmpty()) {
             log.info("Auto-assign skipped. UnassignedShipments={}, AvailableDrivers={}",
