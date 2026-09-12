@@ -12,8 +12,9 @@ import org.mapstruct.Named;
 public interface UserMapper {
 
     // 1. Map User -> AuthDto
-    @Mapping(source = "name", target = "username") // Fixes name mismatch
-    @Mapping(source = "shipments", target = "shipments") // Uses method below automatically
+    @Mapping(source = "name", target = "username")
+    @Mapping(source = "shipments", target = "shipments")
+    @Mapping(target = "password", ignore = true) // Never expose password hashes
     AuthDto toAuthDto(User user);
 
     // 2. Map Shipment -> ShipmentDto (Helper)

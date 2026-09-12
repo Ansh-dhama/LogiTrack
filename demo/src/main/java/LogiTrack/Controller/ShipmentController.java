@@ -2,6 +2,7 @@ package LogiTrack.Controller;
 
 import LogiTrack.Dto.*;
 import LogiTrack.Entity.Shipment;
+import LogiTrack.Enums.Status;
 import LogiTrack.MapStructs.ShipmentMapper;
 import LogiTrack.Services.CustomUserDetails;
 import LogiTrack.Services.ShipmentService;
@@ -16,8 +17,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -29,73 +31,41 @@ public class ShipmentController {
     private final ShipmentMapper shipmentMapper;
     private final TrackingUpdatesService trackingUpdatesService;
 
+    @PreAuthorize("hasRole('USER')")
     @PostMapping
     public ResponseEntity<ApiResponse<ShipmentDto>> createShipment(@Valid @RequestBody ShipmentDto dto) {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        Shipment createdShipment = shipmentService.createShipment(dto, username);
-        ShipmentDto responseDto = shipmentMapper.toDto(createdShipment);
-
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Shipment createdShipment = shipmentService.createShipment(dto, email);
         return new ResponseEntity<>(
-                ApiResponse.success("Shipment created successfully", responseDto),
+                ApiResponse.success("Shipment created successfully", shipmentMapper.toDto(createdShipment)),
                 HttpStatus.CREATED
         );
     }
 
+    @PreAuthorize("hasRole('USER')")
     @GetMapping
     public ResponseEntity<ApiResponse<List<ShipmentDto>>> getYourShipment() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        List<Shipment> shipments = shipmentService.getShipmentsByUser(username);
-
-        List<ShipmentDto> dtos = shipments.stream()
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        List<ShipmentDto> dtos = shipmentService.getShipmentsByUser(email)
+                .stream()
                 .map(shipmentMapper::toDto)
-                .collect(Collectors.toList());
-
+                .toList();
         return ResponseEntity.ok(ApiResponse.success("Shipments fetched successfully", dtos));
     }
 
-    /**
-     * ✅ TrackingEvent-based timeline:
-     * - lastStatus
-     * - lastUpdateTime
-     * - last 20 events
-     */
-    @GetMapping("/{trackingNumber}/timeline")
-    public ResponseEntity<ApiResponse<TrackingTimelineDto>> getTimeline(@PathVariable String trackingNumber) {
-        try {
-            TrackingTimelineDto timelineDto = trackingUpdatesService.getTimeline(trackingNumber);
-            return ResponseEntity.ok(ApiResponse.success("Shipment timeline fetched", timelineDto));
-        } catch (RuntimeException ex) {
-            log.error("Timeline not found for trackingNumber={}", trackingNumber, ex);
-            return new ResponseEntity<>(
-                    ApiResponse.error(ex.getMessage(), null),
-                    HttpStatus.NOT_FOUND
-            );
-        }
-    }
-
-    /**
-     * ✅ Optional: Latest status only (small payload)
-     */
-    @GetMapping("/{trackingNumber}/latest-status")
-    public ResponseEntity<ApiResponse<TrackingEventDto>> getLatestStatus(@PathVariable String trackingNumber) {
-        try {
-            TrackingEventDto latest = trackingUpdatesService.getLatestStatus(trackingNumber);
-            return ResponseEntity.ok(ApiResponse.success("Latest status fetched", latest));
-        } catch (RuntimeException ex) {
-            log.error("Latest status not found for trackingNumber={}", trackingNumber, ex);
-            return new ResponseEntity<>(
-                    ApiResponse.error(ex.getMessage(), null),
-                    HttpStatus.NOT_FOUND
-            );
-        }
+    @GetMapping("/{trackingNumber}/updates")
+    public ResponseEntity<ApiResponse<Map<LocalDateTime, Status>>> getUpdates(
+            @PathVariable("trackingNumber") String trackingNumber
+    ) {
+        TrackingUpdateDto tracking = trackingUpdatesService.findByTrackingNumber(trackingNumber);
+        return ResponseEntity.ok(ApiResponse.success("Your updates are", tracking.getUpdates()));
     }
 
     @PatchMapping("/status")
     public ResponseEntity<ApiResponse<String>> updateShipmentStatus(
             @RequestBody StatusDto statusDto,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
         if (userDetails == null) {
             return new ResponseEntity<>(ApiResponse.error("User not authenticated"), HttpStatus.UNAUTHORIZED);
         }
@@ -106,27 +76,26 @@ public class ShipmentController {
                 userDetails.getId(),
                 userDetails.getRole()
         );
-
         return ResponseEntity.ok(ApiResponse.success("Shipment status updated successfully.", null));
     }
 
-    /**
-     * ✅ Secure: only DRIVER should update location
-     * ✅ Service must verify "assigned driver only"
-     */
-    @PreAuthorize("hasRole('DRIVER')")
+    @PreAuthorize("hasAnyRole('DRIVER','ADMIN')")
     @PostMapping("/{id}/location")
-    public ResponseEntity<ApiResponse<String>> updateLocation(
+    public ResponseEntity<ApiResponse<Void>> updateLocation(
             @PathVariable Long id,
-            @RequestBody DriverLocationUpdateDto locationDto,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-
+            @Valid @RequestBody DriverLocationUpdateDto locationDto,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
         if (userDetails == null) {
             return new ResponseEntity<>(ApiResponse.error("User not authenticated"), HttpStatus.UNAUTHORIZED);
         }
 
-        shipmentService.updateDriverLocation(id, locationDto);
-
+        shipmentService.updateDriverLocation(
+                id,
+                locationDto,
+                userDetails.getId(),
+                userDetails.getRole()
+        );
         return ResponseEntity.ok(ApiResponse.success("Location and ETA updated", null));
     }
 }

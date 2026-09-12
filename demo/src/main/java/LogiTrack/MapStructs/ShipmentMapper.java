@@ -21,5 +21,6 @@ public interface ShipmentMapper {
     @Mapping(target = "user", ignore = true) 
     @Mapping(target = "driver", ignore = true)
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "trackingUpdates", ignore = true)
     Shipment toEntity(ShipmentDto dto);
 }

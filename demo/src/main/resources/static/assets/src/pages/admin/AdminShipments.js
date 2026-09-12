@@ -1,0 +1,16 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { useEffect, useState } from 'react';
+import { RefreshCcw, UserPlus } from 'lucide-react';
+import { adminApi } from '../../api/endpoints.js';
+import { messageOf } from '../../api/client.js';
+import { Badge, Button, Card, Empty, Input, LoadingBlock, PageHeader } from '../../components/UI.js';
+const tone = (s = '') => /deliver/i.test(s) ? 'success' : /transit|pick/i.test(s) ? 'info' : /cancel|fail/i.test(s) ? 'danger' : 'warning';
+export default function AdminShipments() { const [items, setItems] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [assigning, setAssigning] = useState(null); const [driverId, setDriverId] = useState(''); const load = () => { setLoading(true); adminApi.shipments().then(d => setItems(Array.isArray(d) ? d : [])).catch(e => setError(messageOf(e))).finally(() => setLoading(false)); }; useEffect(load, []); const assign = async () => { try {
+    await adminApi.assignDriver(assigning.id, driverId);
+    setAssigning(null);
+    setDriverId('');
+    load();
+}
+catch (e) {
+    setError(messageOf(e));
+} }; return _jsxs(_Fragment, { children: [_jsx(PageHeader, { eyebrow: "Admin shipments", title: "Shipment management", description: "Review all shipments and assign drivers by ID.", action: _jsxs(Button, { variant: "secondary", onClick: load, children: [_jsx(RefreshCcw, { size: 16 }), " Refresh"] }) }), error && _jsx("div", { className: "alert error", children: error }), _jsx(Card, { children: loading ? _jsx(LoadingBlock, {}) : items.length === 0 ? _jsx(Empty, {}) : _jsx("div", { className: "table-wrap", children: _jsxs("table", { children: [_jsx("thead", { children: _jsxs("tr", { children: [_jsx("th", { children: "ID" }), _jsx("th", { children: "Tracking" }), _jsx("th", { children: "Status" }), _jsx("th", { children: "Customer" }), _jsx("th", { children: "Driver" }), _jsx("th", {})] }) }), _jsx("tbody", { children: items.map((s, i) => _jsxs("tr", { children: [_jsx("td", { children: s.id || '—' }), _jsx("td", { children: _jsx("strong", { children: s.trackingNumber || '—' }) }), _jsx("td", { children: _jsx(Badge, { tone: tone(s.status), children: s.status || 'Created' }) }), _jsx("td", { children: s.user?.email || s.customerEmail || s.username || '—' }), _jsx("td", { children: s.driver?.id || s.driverId || 'Unassigned' }), _jsx("td", { children: _jsxs(Button, { variant: "ghost", onClick: () => setAssigning(s), children: [_jsx(UserPlus, { size: 15 }), " Assign"] }) })] }, s.id || i)) })] }) }) }), assigning && _jsx("div", { className: "modal-backdrop", onMouseDown: () => setAssigning(null), children: _jsxs("div", { className: "modal", onMouseDown: e => e.stopPropagation(), children: [_jsx("h3", { children: "Assign driver" }), _jsxs("p", { children: ["Shipment ", _jsx("strong", { children: assigning.trackingNumber || assigning.id })] }), _jsx(Input, { label: "Driver ID", type: "number", value: driverId, onChange: e => setDriverId(e.target.value), autoFocus: true }), _jsxs("div", { className: "modal-actions", children: [_jsx(Button, { variant: "secondary", onClick: () => setAssigning(null), children: "Cancel" }), _jsx(Button, { onClick: assign, disabled: !driverId, children: "Assign driver" })] })] }) })] }); }

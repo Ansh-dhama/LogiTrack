@@ -3,7 +3,6 @@ package LogiTrack.Dto;
 import LogiTrack.Enums.Role;
 import jakarta.validation.constraints.Email; // Import for email validation
 import jakarta.validation.constraints.NotBlank; // Import for checking empty strings
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
@@ -22,7 +21,7 @@ public class AuthDto {
     @NotBlank(message = "Email cannot be empty")
     private String email;
 
-    @NotNull(message = "Role is required")
+    // Role is returned in profile responses, but registration never trusts a client-supplied role.
     private Role role;
 
 

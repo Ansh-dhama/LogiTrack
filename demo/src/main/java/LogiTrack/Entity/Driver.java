@@ -21,10 +21,11 @@
 
         private String driverName;
 
+        @JsonIgnore
         @Column(nullable = false)
         private String password;
 
-        @Column(nullable = false)
+        @Column(nullable = false, unique = true)
         private String email;
 
         @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL)
@@ -35,8 +36,7 @@
         @Column(nullable = false)
         private Role role;
 
-
-        private Boolean available = false; // default true
+        private boolean isAvailable = false;
 
         // Current Driver Location (Updated frequently)
         private Double currentLatitude;

@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -18,10 +17,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration; // <--- Import 1
-import org.springframework.web.cors.CorsConfigurationSource; // <--- Import 2
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource; // <--- Import 3
-import java.util.List; // <--- Import 4
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -39,8 +39,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationProvider authenticationProvider(UserDetailsService userDetailsService,
-                                                         PasswordEncoder encoder) {
+    public AuthenticationProvider authenticationProvider(
+            UserDetailsService userDetailsService,
+            PasswordEncoder encoder
+    ) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(encoder);
@@ -48,42 +50,51 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   AuthenticationProvider authProvider,
-                                                   JwtFilter jwtFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            AuthenticationProvider authProvider,
+            JwtFilter jwtFilter
+    ) throws Exception {
         http
-                // 1. ENABLE CORS HERE
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
                 .csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authProvider)
                 .authorizeHttpRequests(req -> req
-                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers(
+                                "/", "/index.html", "/assets/**", "/favicon.ico",
+                                "/styles.css", "/vite.svg", "/manifest.json", "/error"
+                        ).permitAll()
+                        .requestMatchers(
+                                "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
+                        ).permitAll()
+                        .requestMatchers(
+                                "/auth/login", "/auth/register", "/auth/verify-login-otp"
+                        ).permitAll()
+                        .requestMatchers("/driver/login", "/driver/register").permitAll()
                         .requestMatchers("/admin/login").permitAll()
-                        .requestMatchers("/driver/register", "/driver/login").permitAll()
                         .requestMatchers("/track/**").permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
-                .httpBasic(Customizer.withDefaults());
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // 2. DEFINE THE CORS SETTINGS BEAN
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-
-        // Allow ANY origin (Solving your frontend issue)
-        configuration.setAllowedOrigins(List.of("*"));
-
-        // Allow standard HTTP methods
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-
-        // Allow all headers (Authorization, Content-Type, etc.)
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "http://localhost:8090"
+        ));
+        configuration.setAllowedMethods(List.of(
+                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
+        ));
         configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

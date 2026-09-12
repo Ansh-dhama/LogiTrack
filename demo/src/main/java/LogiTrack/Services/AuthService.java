@@ -1,9 +1,6 @@
 package LogiTrack.Services;
 
 import LogiTrack.Dto.AuthDto;
-import LogiTrack.Dto.ShipmentDto;
-import LogiTrack.Entity.Driver;
-import LogiTrack.Entity.Shipment;
 import LogiTrack.Entity.User;
 import LogiTrack.Enums.Role;
 import LogiTrack.Exceptions.UserExistException;
@@ -15,111 +12,144 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
-import java.util.Random;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final int OTP_VALID_MINUTES = 5;
+
     private final UserRepository userRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
-    public User getUserByEmail(String username) {
-        return userRepository.findByEmail(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found: " + username));
-    }
-    public void registerUser(AuthDto authDto) {
 
-        if (userRepository.findByEmail(authDto.getEmail()).isPresent()) {
+    public User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("User not found: " + email));
+    }
+
+    @Transactional
+    public void registerUser(AuthDto authDto) {
+        String email = authDto.getEmail().trim();
+        if (userRepository.findByEmail(email).isPresent()) {
             throw new UserExistException("Email already in use");
         }
 
         User newUser = new User();
-        newUser.setName(authDto.getUsername());
-        newUser.setEmail(authDto.getEmail());
+        newUser.setName(authDto.getUsername().trim());
+        newUser.setEmail(email);
         newUser.setPassword(passwordEncoder.encode(authDto.getPassword()));
-        newUser.setRole(authDto.getRole());
+        newUser.setRole(Role.USER);
 
-        userRepository.save(newUser);
-
-        // Async email sending recommended here
-        emailService.sendEmail(newUser.getEmail(), "Welcome to LogiTrack",
-                "Your account has been created successfully, " + newUser.getName());
+        User saved = userRepository.save(newUser);
+        emailService.sendEmail(
+                saved.getEmail(),
+                "Welcome to LogiTrack",
+                "Your account has been created successfully, " + saved.getName()
+        );
     }
-    @Transactional // Ensures if one part fails, the whole update rolls back
-    public User updateUser(String email, AuthDto authDto) {
-        User existingUser = getUserByEmail(email);
 
-        if (authDto.getEmail() != null && !authDto.getEmail().isEmpty()) {
-            existingUser.setEmail(authDto.getEmail());
-        }
-        if (authDto.getUsername() != null && !authDto.getUsername().isEmpty()) {
-            existingUser.setName(authDto.getUsername());
-        }
-        if (authDto.getPassword() != null && !authDto.getPassword().isEmpty()) {
-            existingUser.setPassword(passwordEncoder.encode(authDto.getPassword()));
-        }
-
-        // Save
-        User savedUser = userRepository.save(existingUser);
-
-        emailService.sendEmail(savedUser.getEmail(), "Account Updated", "Your account details have been updated.");
-        return savedUser;
-    }
     @Transactional
-    public void deleteUser(String email) {
+    public void generateAndSendOtp(String email) {
         User user = getUserByEmail(email);
 
-        userRepository.delete(user);
-
-        emailService.sendEmail(email, "Account Deleted", "Your account has been permanently deleted.");
-    }
-    public void generateAndSendOtp(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        // Generate 6-digit random code
-        String otp = String.valueOf(new Random().nextInt(900000) + 100000);
-
-        // Save to database
-        user.setOtp(otp);
-        user.setOtpExpirationTime(LocalDateTime.now().plusMinutes(5)); // Valid for 5 mins
+        String otp = String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
+        user.setOtp(passwordEncoder.encode(otp));
+        user.setOtpExpirationTime(LocalDateTime.now().plusMinutes(OTP_VALID_MINUTES));
         userRepository.save(user);
 
-        // Send Email
-        emailService.sendOtpEmail(email, otp);
+        emailService.sendEmail(
+                user.getEmail(),
+                "LogiTrack - Your OTP Code",
+                "Hello " + user.getName() + ",\n\n" +
+                        "Your OTP for LogiTrack login is: " + otp + "\n\n" +
+                        "This code expires in " + OTP_VALID_MINUTES + " minutes.\n" +
+                        "Do not share this code with anyone."
+        );
     }
+
+    @Transactional
     public boolean verifyOtp(String email, String inputOtp) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = getUserByEmail(email);
 
         if (user.getOtp() == null || user.getOtpExpirationTime() == null) {
-            throw new RuntimeException("No OTP requested");
+            return false;
         }
 
         if (user.getOtpExpirationTime().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("OTP has expired");
-        }
-
-        if (user.getOtp().equals(inputOtp)) {
-            // Clear OTP after success so it can't be used twice
             user.setOtp(null);
             user.setOtpExpirationTime(null);
             userRepository.save(user);
-            return true;
-        } else {
             return false;
         }
+
+        boolean matches = passwordEncoder.matches(inputOtp, user.getOtp());
+        if (!matches) {
+            return false;
+        }
+
+        // One-time use: clear after successful verification.
+        user.setOtp(null);
+        user.setOtpExpirationTime(null);
+        userRepository.save(user);
+        return true;
     }
+
+    @Transactional
+    public User updateUser(String currentEmail, AuthDto authDto) {
+        User existingUser = getUserByEmail(currentEmail);
+
+        if (authDto.getEmail() != null && !authDto.getEmail().isBlank()) {
+            String requestedEmail = authDto.getEmail().trim();
+            if (!requestedEmail.equalsIgnoreCase(existingUser.getEmail())) {
+                userRepository.findByEmail(requestedEmail).ifPresent(other -> {
+                    if (!other.getId().equals(existingUser.getId())) {
+                        throw new UserExistException("Email already in use");
+                    }
+                });
+                existingUser.setEmail(requestedEmail);
+            }
+        }
+
+        if (authDto.getUsername() != null && !authDto.getUsername().isBlank()) {
+            existingUser.setName(authDto.getUsername().trim());
+        }
+
+        if (authDto.getPassword() != null && !authDto.getPassword().isBlank()) {
+            existingUser.setPassword(passwordEncoder.encode(authDto.getPassword()));
+        }
+
+        User savedUser = userRepository.save(existingUser);
+        emailService.sendEmail(
+                savedUser.getEmail(),
+                "Account Updated",
+                "Your account details have been updated."
+        );
+        return savedUser;
+    }
+
+    @Transactional
+    public void deleteUser(String email) {
+        User user = getUserByEmail(email);
+        userRepository.delete(user);
+        emailService.sendEmail(
+                email,
+                "Account Deleted",
+                "Your account has been permanently deleted."
+        );
+    }
+
     public Optional<User> findByName(String username) {
         return userRepository.findByName(username);
     }
 
     public User findById(Long userId) {
-        return userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
     }
 }

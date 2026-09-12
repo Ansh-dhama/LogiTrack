@@ -1,9 +1,9 @@
 package LogiTrack.Controller;
 
 import LogiTrack.Dto.AdminDashboardDto;
+import LogiTrack.Dto.AdminShipmentDto;
 import LogiTrack.Dto.LoginRequest;
 import LogiTrack.Dto.LoginResponse;
-import LogiTrack.Entity.Shipment;
 import LogiTrack.Services.AdminService;
 import LogiTrack.Util.JwtUtilie;
 import lombok.RequiredArgsConstructor;
@@ -18,14 +18,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')") // Secures all endpoints by default
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     private final AdminService adminService;
     private final AuthenticationManager authenticationManager;
     private final JwtUtilie jwtUtil;
 
-    @PreAuthorize("permitAll()") // Overrides class-level security for login
+    @PreAuthorize("permitAll()")
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> loginAdmin(@RequestBody LoginRequest request) {
         authenticationManager.authenticate(
@@ -41,18 +41,18 @@ public class AdminController {
     }
 
     @GetMapping("/shipments")
-    public ResponseEntity<List<Shipment>> getAllShipments() {
+    public ResponseEntity<List<AdminShipmentDto>> getAllShipments() {
         return ResponseEntity.ok(adminService.getAllShipments());
     }
 
     @PutMapping("/assign/{shipmentId}/{driverId}")
-    public ResponseEntity<?> assignDriver(@PathVariable Long shipmentId, @PathVariable Long driverId) {
+    public ResponseEntity<String> assignDriver(@PathVariable Long shipmentId, @PathVariable Long driverId) {
         adminService.assignDriverToShipment(shipmentId, driverId);
         return ResponseEntity.ok("Driver assigned successfully");
     }
 
     @PutMapping("/driver-status/{driverId}")
-    public ResponseEntity<?> toggleDriverStatus(@PathVariable Long driverId) {
+    public ResponseEntity<String> toggleDriverStatus(@PathVariable Long driverId) {
         return ResponseEntity.ok(adminService.toggleDriverAvailability(driverId));
     }
 }

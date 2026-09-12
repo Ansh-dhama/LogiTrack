@@ -1,7 +1,6 @@
 package LogiTrack.Controller;
 
 import LogiTrack.Dto.*;
-import LogiTrack.Entity.Shipment;
 import LogiTrack.Entity.User;
 import LogiTrack.MapStructs.UserMapper;
 import LogiTrack.Services.AuthService;
@@ -13,87 +12,94 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/auth")
 @Slf4j
-@RequiredArgsConstructor // Lombok generates constructor for final fields automatically
+@RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
-    private final AuthenticationManager authenticationManager; // Inject Manager
-    private final JwtUtilie jwtUtil; // Inject Utils
+    private final AuthenticationManager authenticationManager;
+    private final JwtUtilie jwtUtil;
     private final UserMapper userMapper;
 
+    // STEP 1: password -> generate/send OTP. NO JWT is returned here.
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse> login(@Valid @RequestBody LoginRequest request) {
-        log.info("Attempting login (Step 1) for: {}", request.getEmail());
+    public ResponseEntity<ApiResponse<Void>> login(@Valid @RequestBody LoginRequest request) {
+        String email = request.getEmail().trim();
+        log.info("Attempting customer login step 1 for: {}", email);
 
-        // A. Verify Password with Spring Security
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(email, request.getPassword())
         );
 
-        // B. Generate & Send OTP (Do NOT return token yet)
-        authService.generateAndSendOtp(request.getEmail());
-
-        return ResponseEntity.ok(ApiResponse.success("Password verified. OTP sent to your email.", null));
+        authService.generateAndSendOtp(email);
+        return ResponseEntity.ok(
+                ApiResponse.success("Password verified. OTP sent to your email.", null)
+        );
     }
 
-    // ----------------------------------------------------------------
-    // 2. STEP 2: VERIFY OTP (OTP Check -> Return Token)
-    // ----------------------------------------------------------------
+    // STEP 2: valid OTP -> JWT.
     @PostMapping("/verify-login-otp")
-    public ResponseEntity<ApiResponse> verifyLoginOtp(@RequestBody VerifyOtpRequest otpRequest) {
-        log.info("Verifying OTP for: {}", otpRequest.getEmail());
+    public ResponseEntity<ApiResponse<LoginResponse>> verifyLoginOtp(
+            @Valid @RequestBody VerifyOtpRequest request
+    ) {
+        String email = request.getEmail().trim();
+        log.info("Verifying customer OTP for: {}", email);
 
-        // A. Check if OTP is valid in Database
-        boolean isValid = authService.verifyOtp(otpRequest.getEmail(),otpRequest.getOtp());
-
-        if (isValid) {
-            // B. Generate Token NOW (Only after OTP matches)
-            String token = jwtUtil.generateToken(otpRequest.getEmail());
-            return ResponseEntity.ok(ApiResponse.success("Login Successful. Token generated.", new LoginResponse(token)));
-        } else {
+        if (!authService.verifyOtp(email, request.getOtp())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.error("Invalid or Expired OTP", null));
+                    .body(ApiResponse.error("Invalid or expired OTP", null));
         }
-    }
 
+        String token = jwtUtil.generateToken(email);
+        return ResponseEntity.ok(
+                ApiResponse.success("Login successful", new LoginResponse(token))
+        );
+    }
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse> getCurrentUser() {
-        String Email = SecurityContextHolder.getContext().getAuthentication().getName();
-        AuthDto authDto = userMapper.toAuthDto(authService.getUserByEmail(Email));
-        return ResponseEntity.ok(ApiResponse.success("User profile succesfully fetched",authDto));
+    public ResponseEntity<ApiResponse<AuthDto>> getCurrentUser() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        AuthDto authDto = userMapper.toAuthDto(authService.getUserByEmail(email));
+        return ResponseEntity.ok(ApiResponse.success("User profile successfully fetched", authDto));
     }
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse> registerUser(@Valid @RequestBody AuthDto authDto) {
+    public ResponseEntity<ApiResponse<Void>> registerUser(@Valid @RequestBody AuthDto authDto) {
         log.info("Registering new user: {}", authDto.getUsername());
         authService.registerUser(authDto);
-            return new ResponseEntity<>(ApiResponse.success("User registered successfully",null), HttpStatus.CREATED);
+        return new ResponseEntity<>(
+                ApiResponse.success("User registered successfully", null),
+                HttpStatus.CREATED
+        );
     }
+
     @PutMapping("/update")
-    public ResponseEntity<ApiResponse> updateUser(@RequestBody AuthDto authDto) {
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-            authService.updateUser(currentUsername, authDto);
-            return ResponseEntity.ok(ApiResponse.success("User updated successfully",null));
+    public ResponseEntity<ApiResponse<ProfileUpdateResponse<AuthDto>>> updateUser(
+            @RequestBody AuthDto authDto
+    ) {
+        String currentEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        User updatedUser = authService.updateUser(currentEmail, authDto);
+
+        String refreshedToken = jwtUtil.generateToken(updatedUser.getEmail());
+        AuthDto updatedProfile = userMapper.toAuthDto(updatedUser);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "User updated successfully",
+                        new ProfileUpdateResponse<>(updatedProfile, refreshedToken)
+                )
+        );
     }
 
     @DeleteMapping("/delete")
-    public ResponseEntity<?> deleteUser() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            authService.deleteUser(username);
-            return ResponseEntity.ok(ApiResponse.success("User deleted successfully",null));
+    public ResponseEntity<ApiResponse<Void>> deleteUser() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        authService.deleteUser(email);
+        return ResponseEntity.ok(ApiResponse.success("User deleted successfully", null));
     }
 }

@@ -26,6 +26,7 @@
             private String name;
             @Column(nullable = false, unique = true)
             private String email;
+            @JsonIgnore
             @Column(nullable = false)
             private String password;
 
@@ -36,8 +37,13 @@
             @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
             @JsonIgnore
             private List<Shipment> shipments;
-            // Inside LogiTrack.Entity.User.java
+
+            // Login OTP is stored as a BCrypt hash and expires quickly.
+            @JsonIgnore
+            @Column(length = 100)
             private String otp;
+
+            @JsonIgnore
             private LocalDateTime otpExpirationTime;
 
         }
